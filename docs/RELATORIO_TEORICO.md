@@ -26,7 +26,7 @@ Os trechos abaixo correspondem à implementação de `js/app.js`. A função `fe
 return fetch(key);
 ```
 
-A variável `key` contém a URL completa da consulta. Antes de acessar a rede, o projeto procura uma resposta em cache com validade de cinco minutos. Enquanto uma consulta está em andamento, novos envios são ignorados e os botões ficam desabilitados. Consultas não armazenadas são espaçadas por pelo menos 1,5 segundo. Isso evita sobreposição e reduz chamadas repetidas, sem prometer eliminar limites aplicados pelo servidor.
+A variável `key` contém a URL completa da consulta. Antes de acessar a rede, o projeto procura uma resposta em cache com validade de cinco minutos. Enquanto uma consulta está em andamento, novos envios são ignorados e os botões ficam desabilitados. Cada consulta não armazenada aguarda 10 segundos após a solicitação antes de iniciar o GET, incluindo a consulta inicial e a tentativa manual após falhas. Durante esse período e a requisição, a interface apresenta uma animação de carregamento, sem contagem regressiva visível. Isso evita sobreposição e reduz chamadas repetidas, sem prometer eliminar limites aplicados pelo servidor.
 
 O primeiro `.then()` recebe um objeto `Response`, verifica o status HTTP e converte o corpo para JSON. O `fetch()` não rejeita automaticamente uma resposta HTTP de erro; por isso, a verificação de `response.ok` é necessária. O código distingue o status 404, tratado como ausência de personagens, dos demais erros. A leitura assíncrona do corpo é feita por:
 

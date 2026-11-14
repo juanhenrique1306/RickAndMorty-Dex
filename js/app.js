@@ -10,9 +10,8 @@ const nameInput = document.getElementById('name-filter');
 const statusInput = document.getElementById('status-filter');
 const state = { page: 1, pages: 0, name: '', status: '', loading: false };
 const CACHE_TTL = 5 * 60 * 1000;
-const MIN_REQUEST_INTERVAL = 1500;
+const REQUEST_DELAY = 10000;
 const queryCache = new Map();
-let lastRequestAt = 0;
 let blockedUntil = 0;
 let cooldownTimer;
 
@@ -46,7 +45,7 @@ function startCooldown(milliseconds, rateLimited) {
   const refresh = () => {
     const seconds = Math.max(0, Math.ceil((blockedUntil - Date.now()) / 1000));
     const description = seconds > 0
-        ? `${rateLimited ? 'A API limitou temporariamente o acesso.' : 'Não foi possível acessar a API. O serviço pode estar indisponível ou limitando consultas.'} Aguarde ${seconds} s antes de tentar novamente.`
+        ? `${rateLimited ? 'A API limitou temporariamente o acesso.' : 'Não foi possível acessar a API. O serviço pode estar indisponível ou limitando consultas.'} Aguarde um momento antes de tentar novamente.`
         : 'Você já pode tentar novamente. Nenhuma consulta será reenviada automaticamente.';
     const message = cardsContainer.querySelector('.state-message');
     if (message && message.querySelector('button')) {
@@ -115,9 +114,14 @@ function createCharacterCard(character) {
   return card;
 }
 
-function showMessage(title, description, retry = false) {
+function showMessage(title, description, retry = false, loading = false) {
   cardsContainer.replaceChildren();
   const message = makeElement('div', 'state-message');
+  if (loading) {
+    const spinner = makeElement('span', 'loading-spinner');
+    spinner.setAttribute('aria-hidden', 'true');
+    message.appendChild(spinner);
+  }
   message.appendChild(makeElement('h3', '', title));
   if (description) message.appendChild(makeElement('p', '', description));
   if (retry) {
@@ -168,14 +172,13 @@ function fetchCharacters(page = 1, name = '', status = '') {
   state.loading = true;
   cardsContainer.setAttribute('aria-busy', 'true');
   resultsCount.textContent = 'Consultando personagens…';
-  showMessage('Carregando dados do multiverso...');
+  showMessage('Carregando dados do multiverso...', '', false, true);
   updatePagination();
 
-  // Espaça consultas diferentes; não faz retry automático após falhas.
-  const wait = Math.max(0, MIN_REQUEST_INTERVAL - (Date.now() - lastRequestAt));
-  return new Promise(resolve => setTimeout(resolve, wait))
+  // Aguarda 10 segundos antes de cada GET novo, sem contagem visível.
+  // O estado loading bloqueia cliques repetidos durante a espera e a requisição.
+  return new Promise(resolve => setTimeout(resolve, REQUEST_DELAY))
     .then(() => {
-      lastRequestAt = Date.now();
       // fetch inicia o GET assíncrono; .then verifica o HTTP e lê o JSON.
       return fetch(key);
     })

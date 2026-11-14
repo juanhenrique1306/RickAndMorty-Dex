@@ -13,7 +13,7 @@ Explorador de personagens de **Rick and Morty**, desenvolvido como projeto acad�
 - Paginação com preservação dos filtros e indicação de limites.
 - Cards com imagem, nome, status, espécie, gênero, origem, última localização e número de episódios.
 - Contador, carregamento, busca sem resultados, falha de conexão e nova tentativa.
-- Bloqueio de consultas simultâneas, cache temporário e intervalo mínimo entre consultas novas.
+- Bloqueio de consultas simultâneas, cache temporário e espera de 10 segundos antes de consultas novas.
 - Tema escuro, grid responsivo, navegação por teclado, labels e anúncios de estado.
 - JSON registrado no console a cada consulta bem-sucedida.
 
@@ -70,12 +70,12 @@ A validação automatizada em localhost passou para cards, busca, filtro de stat
 
 - Resultados são mantidos em memória por **5 minutos**, com limite de **30 consultas**. A chave inclui página, nome e status; resultados vazios também são reutilizados. Recarregar a página elimina esse cache.
 - Voltar a uma página ou repetir uma busca no cache não gera um novo GET. Não há pré-carregamento de páginas.
-- Consultas novas começam com intervalo mínimo de **1,5 segundo**; durante a espera e o carregamento, os botões ficam bloqueados e novos envios são ignorados. Aguarde a conclusão antes de aplicar outra busca.
+- Cada consulta nova aguarda **10 segundos após a solicitação**, inclusive a inicial e as tentativas manuais após falhas. Durante a espera e o acesso à rede, uma animação de carregamento é exibida, sem timer visível; os botões ficam bloqueados e novos envios são ignorados. A animação respeita a preferência de movimento reduzido. Aguarde a conclusão antes de aplicar outra busca.
 - Quando um HTTP 429 é acessível ao JavaScript, a aplicação respeita `Retry-After` em segundos ou data HTTP. Se ausente, inválido ou oculto por CORS, usa **60 segundos** para o 429 identificado. Esse valor é uma escolha conservadora do projeto, não uma cota oficial da API.
 - Erros genéricos, incluindo respostas ocultas por CORS, impõem pausa de **10 segundos** sem afirmar que a causa é necessariamente um 429.
-- Uma contagem regressiva libera a tentativa manual. Não há repetição automática, e a liberação do botão não garante que o bloqueio do servidor terminou.
+- Após a pausa, a tentativa manual é liberada, sem contagem regressiva visível. Não há repetição automática, e a liberação do botão não garante que o bloqueio do servidor terminou.
 
-Testes em navegador com respostas simuladas verificaram cache, expiração, navegação sem GET repetido, intervalo mínimo, bloqueio de concorrência, cache de 404, HTTP 429 com `Retry-After` em segundos e data, ausência/erro do cabeçalho, pausa após falha de rede e recuperação manual. O acesso à API real permanece sem comprovação no ambiente restrito. Essas proteções reduzem chamadas desta página; não controlam consultas de outras abas, dispositivos ou usuários do mesmo IP.
+Testes em navegador com respostas simuladas verificaram cache, expiração, navegação sem GET repetido, espera de 10 segundos sem timer visível, bloqueio de concorrência, cache de 404, HTTP 429 com `Retry-After` em segundos e data, ausência/erro do cabeçalho, pausa após falha de rede e recuperação manual. O acesso à API real permanece sem comprovação no ambiente restrito. Essas proteções reduzem chamadas desta página; não controlam consultas de outras abas, dispositivos ou usuários do mesmo IP.
 
 ## Entrega acadêmica
 
