@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Explore personagens, origens e dimensões de Rick and Morty com dados da API pública.">
+  <title>RickAndMorty-Dex | Explorador do multiverso</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Rubik:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script src="js/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#explorador">Pular para o explorador</a>
+  <header class="site-header wrap">
+    <a class="brand" href="index.html" aria-label="RickAndMorty-Dex, início"><span class="brand-icon" aria-hidden="true">◎</span> RickAndMorty<span>-Dex</span></a>
+    <span class="header-note">ARQUIVO INTERDIMENSIONAL <span aria-hidden="true">✦</span></span>
+  </header>
+  <main class="wrap">
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="signal" aria-hidden="true"></span> CONEXÃO COM O MULTIVERSO</p>
+        <h1 id="hero-title">Infinitas dimensões.<br><span>Uma só Dex.</span></h1>
+        <p class="intro">De cientistas excêntricos a criaturas de outro planeta. Explore o universo de Rick and Morty, um personagem de cada vez.</p>
+        <a href="#explorador" class="hero-link">Abrir o explorador <span aria-hidden="true">↘</span></a>
+      </div>
+      <div class="portal-art" aria-hidden="true"><div class="portal"><span>R&amp;M</span><small>DIMENSÃO C-137</small></div><span class="orbit-label">COORDENADAS DESCONHECIDAS</span></div>
+    </section>
+    <section id="explorador" class="explorer" aria-labelledby="explorer-title">
+      <div class="section-heading"><div><p class="eyebrow">BANCO DE DADOS</p><h2 id="explorer-title">Encontre sua próxima descoberta</h2></div><span class="source-label">THE RICK AND MORTY API ↗</span></div>
+      <form id="filters-form" class="toolbar" role="search">
+        <div class="field search-field"><label for="name-filter">Nome do personagem</label><input id="name-filter" type="text" placeholder="Busque por Rick, Morty, Summer…" autocomplete="off" maxlength="100"></div>
+        <div class="field"><label for="status-filter">Status</label><select id="status-filter"><option value="">Todos os status</option><option value="alive">Vivo (Alive)</option><option value="dead">Morto (Dead)</option><option value="unknown">Desconhecido (unknown)</option></select></div>
+        <button type="submit" class="button primary">Buscar <span aria-hidden="true">↗</span></button>
+        <button type="button" id="clear-filters" class="button secondary">Limpar filtros</button>
+      </form>
+      <div class="results-heading"><p id="results-count" role="status">Conectando ao multiverso…</p><span class="live-label"><span class="signal" aria-hidden="true"></span> DADOS DA API</span></div>
+      <!-- Os cards são criados com createElement e appendChild em js/app.js. -->
+      <section id="cards-container" class="cards-grid" aria-live="polite"></section>
+      <noscript><p class="state-message">Ative o JavaScript para consultar os personagens.</p></noscript>
+      <nav class="pagination" aria-label="Paginação dos personagens"><button id="previous-page" class="button secondary" disabled>← Anterior</button><span id="page-indicator" aria-live="polite">Página — de —</span><button id="next-page" class="button secondary" disabled>Próxima →</button></nav>
+    </section>
+  </main>
+  <footer class="wrap site-footer"><p><strong>RickAndMorty-Dex</strong> · Projeto acadêmico UniFECAF</p><a href="https://rickandmortyapi.com/documentation" target="_blank" rel="noopener noreferrer">Documentação da API ↗</a><p>Personagens © Adult Swim. Projeto educacional, sem fins comerciais.</p></footer>
+</body>
+</html>
