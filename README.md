@@ -13,7 +13,7 @@ Explorador de personagens de **Rick and Morty**, desenvolvido como projeto acad�
 - Paginação com preservação dos filtros e indicação de limites.
 - Cards com imagem, nome, status, espécie, gênero, origem, última localização e número de episódios.
 - Contador, carregamento, busca sem resultados, falha de conexão e nova tentativa.
-- Cancelamento de consultas antigas para evitar resultados fora de ordem.
+- Bloqueio de consultas simultâneas, cache temporário e intervalo mínimo entre consultas novas.
 - Tema escuro, grid responsivo, navegação por teclado, labels e anúncios de estado.
 - JSON registrado no console a cada consulta bem-sucedida.
 
@@ -60,11 +60,22 @@ Abra o DevTools com `F12`. Em **Network → Fetch/XHR**, inspecione `character` 
 3. Avance e retorne uma página; os filtros devem permanecer ativos.
 4. Busque um nome inexistente e confira a mensagem de nenhum resultado.
 5. Limpe os filtros e confira a página 1 com a coleção completa.
-6. No DevTools, ative o modo offline e faça uma busca. Confira o erro; volte ao modo online e clique em Tentar novamente.
-7. Envie duas buscas rapidamente; apenas a mais recente deve prevalecer.
+6. No DevTools, ative o modo offline e faça uma busca ainda não consultada. Confira o erro e a pausa de 10 segundos; volte ao modo online e clique em Tentar novamente após a liberação.
+7. Durante uma busca, confirme que Buscar, Limpar filtros e paginação ficam desabilitados. O envio por Enter também não deve gerar consultas simultâneas.
 8. Confira o layout em 375 px, tablet e desktop e navegue pelo formulário usando Tab e Enter.
 
-A validação automatizada em localhost passou para cards, busca, filtro de status, paginação, vazio, erro com nova tentativa, buscas concorrentes e ausência de rolagem horizontal em 375, 768 e 1440 px, usando respostas simuladas. A checagem de sintaxe `node --check js/app.js` também passou. O teste de abertura por `file://` foi bloqueado pela política administrativa do navegador gerenciado; essa modalidade permanece sem validação neste ambiente. Isso não comprova acesso à API real: esse acesso foi bloqueado por HTTP 403 na política de rede do ambiente de desenvolvimento. A documentação e as fontes externas também dependem de liberação de rede. Não há dados simulados nem dependências de teste dentro da aplicação entregue.
+A validação automatizada em localhost passou para cards, busca, filtro de status, paginação, vazio, erro com nova tentativa, controle de concorrência e ausência de rolagem horizontal em 375, 768 e 1440 px, usando respostas simuladas. A checagem de sintaxe `node --check js/app.js` também passou. O teste de abertura por `file://` foi bloqueado pela política administrativa do navegador gerenciado; essa modalidade permanece sem validação neste ambiente. Isso não comprova acesso à API real: esse acesso foi bloqueado por HTTP 403 na política de rede do ambiente de desenvolvimento. A documentação e as fontes externas também dependem de liberação de rede. Não há dados simulados nem dependências de teste dentro da aplicação entregue.
+
+## Proteção contra excesso de consultas (HTTP 429)
+
+- Resultados são mantidos em memória por **5 minutos**, com limite de **30 consultas**. A chave inclui página, nome e status; resultados vazios também são reutilizados. Recarregar a página elimina esse cache.
+- Voltar a uma página ou repetir uma busca no cache não gera um novo GET. Não há pré-carregamento de páginas.
+- Consultas novas começam com intervalo mínimo de **1,5 segundo**; durante a espera e o carregamento, os botões ficam bloqueados e novos envios são ignorados. Aguarde a conclusão antes de aplicar outra busca.
+- Quando um HTTP 429 é acessível ao JavaScript, a aplicação respeita `Retry-After` em segundos ou data HTTP. Se ausente, inválido ou oculto por CORS, usa **60 segundos** para o 429 identificado. Esse valor é uma escolha conservadora do projeto, não uma cota oficial da API.
+- Erros genéricos, incluindo respostas ocultas por CORS, impõem pausa de **10 segundos** sem afirmar que a causa é necessariamente um 429.
+- Uma contagem regressiva libera a tentativa manual. Não há repetição automática, e a liberação do botão não garante que o bloqueio do servidor terminou.
+
+Testes em navegador com respostas simuladas verificaram cache, expiração, navegação sem GET repetido, intervalo mínimo, bloqueio de concorrência, cache de 404, HTTP 429 com `Retry-After` em segundos e data, ausência/erro do cabeçalho, pausa após falha de rede e recuperação manual. O acesso à API real permanece sem comprovação no ambiente restrito. Essas proteções reduzem chamadas desta página; não controlam consultas de outras abas, dispositivos ou usuários do mesmo IP.
 
 ## Entrega acadêmica
 

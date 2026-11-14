@@ -23,10 +23,10 @@ Essa abordagem evita duplicação de marcação e permite que busca e paginaçã
 Os trechos abaixo correspondem à implementação de `js/app.js`. A função `fetchCharacters(page, name, status)` constrói uma URL com `URL` e `searchParams`, codificando corretamente espaços e caracteres especiais. O método `fetch()` inicia a comunicação e devolve uma Promise, que representa um resultado futuro:
 
 ```js
-return fetch(url.toString(), { signal: activeController.signal })
+return fetch(key);
 ```
 
-O sinal pertence a um `AbortController`. Quando uma nova busca começa, a requisição anterior é cancelada. Um identificador também impede que uma resposta antiga substitua o resultado de uma busca mais recente.
+A variável `key` contém a URL completa da consulta. Antes de acessar a rede, o projeto procura uma resposta em cache com validade de cinco minutos. Enquanto uma consulta está em andamento, novos envios são ignorados e os botões ficam desabilitados. Consultas não armazenadas são espaçadas por pelo menos 1,5 segundo. Isso evita sobreposição e reduz chamadas repetidas, sem prometer eliminar limites aplicados pelo servidor.
 
 O primeiro `.then()` recebe um objeto `Response`, verifica o status HTTP e converte o corpo para JSON. O `fetch()` não rejeita automaticamente uma resposta HTTP de erro; por isso, a verificação de `response.ok` é necessária. O código distingue o status 404, tratado como ausência de personagens, dos demais erros. A leitura assíncrona do corpo é feita por:
 
@@ -42,7 +42,7 @@ console.log('[RickAndMorty-Dex API]:', data);
 data.results.forEach(character => fragment.appendChild(createCharacterCard(character)));
 ```
 
-O método `.catch()` trata erros de rede, HTTP e processamento. Uma busca sem resultados exibe “Nenhum personagem encontrado nesta dimensão”. Em falhas de comunicação, a interface oferece um botão para tentar novamente. Cancelamentos intencionais não são apresentados como erros ao usuário. O `.finally()` encerra o estado de carregamento e atualiza os controles de paginação, desde que a requisição ainda seja a mais recente.
+O método `.catch()` trata erros de rede, HTTP e processamento. Uma busca sem resultados exibe “Nenhum personagem encontrado nesta dimensão”. Em falhas de comunicação, a interface oferece um botão para tentar novamente. Um HTTP 429 acessível ao script inicia uma espera baseada no cabeçalho `Retry-After`, em segundos ou data HTTP; sem valor válido, a pausa é de 60 segundos. Falhas genéricas geram uma pausa de 10 segundos, pois CORS pode ocultar o status real. Nenhuma consulta é reenviada automaticamente. O `.finally()` encerra o estado de carregamento e atualiza os controles de paginação.
 
 A criação clássica de elementos fica evidente no início de cada card:
 

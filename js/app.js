@@ -9,8 +9,58 @@ const nextButton = document.getElementById('next-page');
 const nameInput = document.getElementById('name-filter');
 const statusInput = document.getElementById('status-filter');
 const state = { page: 1, pages: 0, name: '', status: '', loading: false };
-let activeController;
-let requestId = 0;
+const CACHE_TTL = 5 * 60 * 1000;
+const MIN_REQUEST_INTERVAL = 1500;
+const queryCache = new Map();
+let lastRequestAt = 0;
+let blockedUntil = 0;
+let cooldownTimer;
+
+// Cache limitado à sessão da página: consultas repetidas não geram novos GETs.
+function readCache(key) {
+  const entry = queryCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.createdAt >= CACHE_TTL) {
+    queryCache.delete(key);
+    return null;
+  }
+  return entry.data;
+}
+
+function saveCache(key, data) {
+  if (queryCache.size >= 30) queryCache.delete(queryCache.keys().next().value);
+  queryCache.set(key, { data, createdAt: Date.now() });
+}
+
+function retryDelay(value) {
+  if (!value) return 60000;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.max(1000, seconds * 1000);
+  const date = Date.parse(value);
+  return Number.isNaN(date) ? 60000 : Math.max(1000, date - Date.now());
+}
+
+function startCooldown(milliseconds, rateLimited) {
+  clearInterval(cooldownTimer);
+  blockedUntil = Date.now() + milliseconds;
+  const refresh = () => {
+    const seconds = Math.max(0, Math.ceil((blockedUntil - Date.now()) / 1000));
+    const description = seconds > 0
+        ? `${rateLimited ? 'A API limitou temporariamente o acesso.' : 'Não foi possível acessar a API. O serviço pode estar indisponível ou limitando consultas.'} Aguarde ${seconds} s antes de tentar novamente.`
+        : 'Você já pode tentar novamente. Nenhuma consulta será reenviada automaticamente.';
+    const message = cardsContainer.querySelector('.state-message');
+    if (message && message.querySelector('button')) {
+      message.querySelector('p').textContent = description;
+      message.querySelector('button').disabled = state.loading || seconds > 0;
+    } else {
+      showMessage(rateLimited ? 'Muitas consultas ao multiverso' : 'O portal está indisponível', description, true);
+    }
+    updatePagination();
+    if (seconds === 0) clearInterval(cooldownTimer);
+  };
+  refresh();
+  cooldownTimer = setInterval(refresh, 1000);
+}
 
 // Cada nó nasce com createElement; textContent insere texto sem interpretar HTML.
 function makeElement(tag, className, text) {
@@ -73,6 +123,7 @@ function showMessage(title, description, retry = false) {
   if (retry) {
     const button = makeElement('button', 'button secondary', 'Tentar novamente');
     button.type = 'button';
+    button.disabled = state.loading || Date.now() < blockedUntil;
     button.addEventListener('click', () => fetchCharacters(state.page, state.name, state.status));
     message.appendChild(button);
   }
@@ -80,67 +131,85 @@ function showMessage(title, description, retry = false) {
 }
 
 function updatePagination() {
-  previousButton.disabled = state.loading || state.page <= 1 || state.pages === 0;
-  nextButton.disabled = state.loading || state.page >= state.pages;
+  const busy = state.loading || Date.now() < blockedUntil;
+  document.querySelector('#filters-form button[type="submit"]').disabled = busy;
+  document.getElementById('clear-filters').disabled = busy;
+  previousButton.disabled = busy || state.page <= 1 || state.pages === 0;
+  nextButton.disabled = busy || state.page >= state.pages;
   pageIndicator.textContent = state.pages ? `Página ${state.page} de ${state.pages}` : 'Página — de —';
 }
 
+function renderCharacters(data) {
+  state.pages = data.info.pages;
+  cardsContainer.replaceChildren();
+  // O fragmento agrupa os cards; appendChild os insere no container inicialmente vazio.
+  const fragment = document.createDocumentFragment();
+  data.results.forEach(character => fragment.appendChild(createCharacterCard(character)));
+  cardsContainer.appendChild(fragment);
+  resultsCount.textContent = `${data.info.count.toLocaleString('pt-BR')} personagens encontrados · ${data.results.length} nesta página`;
+  if (data.results.length === 0) showMessage('Nenhum personagem encontrado nesta dimensão', 'Tente outro nome ou limpe os filtros para explorar novamente.');
+}
+
 function fetchCharacters(page = 1, name = '', status = '') {
-  // Cancela requisições antigas: uma busca lenta não deve sobrescrever a mais recente.
-  if (activeController) activeController.abort();
-  activeController = new AbortController();
-  const currentRequest = ++requestId;
-  Object.assign(state, { page, name, status, loading: true });
+  // Bloqueia duplicatas em andamento, inclusive envios pela tecla Enter.
+  if (state.loading || Date.now() < blockedUntil) return Promise.resolve();
+  Object.assign(state, { page, name, status });
   const url = new URL(API_URL);
   url.searchParams.set('page', String(page));
   if (name) url.searchParams.set('name', name);
   if (status) url.searchParams.set('status', status);
+  const key = url.toString();
+  const cached = readCache(key);
+  if (cached) {
+    renderCharacters(cached);
+    updatePagination();
+    return Promise.resolve();
+  }
+  state.loading = true;
   cardsContainer.setAttribute('aria-busy', 'true');
   resultsCount.textContent = 'Consultando personagens…';
   showMessage('Carregando dados do multiverso...');
   updatePagination();
 
-  // fetch inicia o GET assíncrono. O primeiro .then verifica o HTTP e lê o JSON.
-  return fetch(url.toString(), { signal: activeController.signal })
+  // Espaça consultas diferentes; não faz retry automático após falhas.
+  const wait = Math.max(0, MIN_REQUEST_INTERVAL - (Date.now() - lastRequestAt));
+  return new Promise(resolve => setTimeout(resolve, wait))
+    .then(() => {
+      lastRequestAt = Date.now();
+      // fetch inicia o GET assíncrono; .then verifica o HTTP e lê o JSON.
+      return fetch(key);
+    })
     .then(response => {
-      if (response.status === 404) {
-        const error = new Error('Nenhum resultado');
-        error.empty = true;
+      if (response.status === 429) {
+        const error = new Error('Limite de requisições da API');
+        error.rateLimited = true;
+        error.delay = retryDelay(response.headers.get('Retry-After'));
         throw error;
       }
+      if (response.status === 404) return { info: { count: 0, pages: 0 }, results: [] };
       if (!response.ok) throw new Error(`Falha HTTP ${response.status}`);
       return response.json();
     })
     .then(data => {
-      if (currentRequest !== requestId) return;
       console.log('[RickAndMorty-Dex API]:', data);
       if (!data.info || !Array.isArray(data.results)) throw new Error('Resposta inesperada da API');
-      state.pages = data.info.pages;
-      cardsContainer.replaceChildren();
-      // O fragmento agrupa os cards; appendChild os insere no container inicialmente vazio.
-      const fragment = document.createDocumentFragment();
-      data.results.forEach(character => fragment.appendChild(createCharacterCard(character)));
-      cardsContainer.appendChild(fragment);
-      resultsCount.textContent = `${data.info.count.toLocaleString('pt-BR')} personagens encontrados · ${data.results.length} nesta página`;
-      if (data.results.length === 0) showMessage('Nenhum personagem encontrado nesta dimensão');
+      saveCache(key, data);
+      renderCharacters(data);
     })
-    // .catch distingue ausência de resultados de falhas de rede ou do serviço.
+    // CORS pode esconder o status 429: falhas genéricas também recebem uma pausa.
     .catch(error => {
-      if (currentRequest !== requestId || error.name === 'AbortError') return;
       state.pages = 0;
-      if (error.empty) {
-        resultsCount.textContent = '0 personagens encontrados';
-        showMessage('Nenhum personagem encontrado nesta dimensão', 'Tente outro nome ou limpe os filtros para explorar novamente.');
-      } else {
-        resultsCount.textContent = 'Não foi possível consultar os personagens';
-        showMessage('O portal está indisponível', 'Verifique sua conexão com a internet e tente novamente.', true);
-        console.error('[RickAndMorty-Dex erro]:', error);
-      }
+      resultsCount.textContent = error.rateLimited
+        ? 'Limite temporário de consultas atingido'
+        : 'Não foi possível consultar os personagens';
+      startCooldown(error.rateLimited ? error.delay : 10000, Boolean(error.rateLimited));
+      console.error('[RickAndMorty-Dex erro]:', error);
     })
     .finally(() => {
-      if (currentRequest !== requestId) return;
       state.loading = false;
       cardsContainer.setAttribute('aria-busy', 'false');
+      const retry = cardsContainer.querySelector('button');
+      if (retry) retry.disabled = Date.now() < blockedUntil;
       updatePagination();
     });
 }
